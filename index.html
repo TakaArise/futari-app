@@ -209,6 +209,21 @@ select{
 .badge{font-size:9.5px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.13);color:var(--sub);white-space:nowrap;}
 .dim{opacity:.42;}
 
+/* 枠数ステッパー */
+.stp{
+  display:flex;align-items:center;flex:0 0 auto;
+  background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:11px;overflow:hidden;
+}
+.stp button{
+  width:30px;height:32px;background:none;border:0;color:var(--txt);
+  font-size:15px;font-weight:800;font-family:inherit;line-height:1;padding:0;
+}
+.stp button:active{background:rgba(255,255,255,.14);}
+.stp button:disabled{opacity:.22;}
+.stp .qn{min-width:22px;text-align:center;font-size:13px;font-weight:800;}
+.rule.multi{border-color:var(--gold);background:rgba(255,209,102,.13);}
+.rule.multi .chk{background:var(--gold);border-color:var(--gold);color:#3b2500;font-size:12px;font-weight:900;}
+
 /* ===== nav ===== */
 nav{
   position:fixed;left:0;right:0;bottom:0;z-index:40;
@@ -289,7 +304,7 @@ nav button.on{color:var(--pink2);}
   <!-- ========== 設定 ========== -->
   <section class="screen" id="s-set">
     <h2 class="t">罰ゲームを選ぶ</h2>
-    <p class="note">使う罰ゲームを1つずつON/OFFできます。ONにしたものだけがルーレットとカードに出ます。</p>
+    <p class="note">使う罰ゲームを1つずつON/OFFできます。＋を押して同じ罰ゲームの枠を増やすと、その分だけ出やすくなります。</p>
     <button class="btn ghost" style="margin-top:10px" data-open-list>🗂 一覧を開く</button>
 
     <h2 class="t">オリジナル罰ゲームを追加</h2>
@@ -554,7 +569,8 @@ const def = () => ({
   rulesOn:[0,1,2,5].map(i=>RULES_DEFAULT[i]),
   customRules:[],
   customPunish:[],
-  off:[],          /* 一覧でOFFにした罰ゲームの文言。デフォルトは全ON */
+  off:[],          /* 旧形式（OFFリスト）。qtyへ移行するためだけに残す */
+  qty:{},          /* 罰ゲームごとの枠数。未設定＝1、0＝使わない、2以上＝その数だけ当たりやすい */
   history:[],
   sound:true,
   qi:-1
@@ -566,16 +582,25 @@ if(S.rulesOn.some(x => typeof x === "number")){
   S.rulesOn = S.rulesOn.filter(i => i < 10).map(i => RULES_DEFAULT[i]).filter(Boolean); // 旧デフォルトは10個
   save();
 }
+/* 旧版のOFFリストを枠数（0＝使わない）に移行 */
+if(S.off.length){
+  S.off.forEach(t => S.qty[t] = 0);
+  S.off = []; save();
+}
 
-const isOff = t => S.off.includes(t);
+const MAXQ = 6;                                    /* 1つの罰ゲームに入れられる最大枠数 */
+const qty = t => S.qty[t] === undefined ? 1 : S.qty[t];
+const setQty = (t,n) => { n===1 ? delete S.qty[t] : S.qty[t] = n; };
 /* そのレベルの全項目（プリセット＋自作）。一覧表示用 */
 const allOf = l => PUNISH[l].map(t=>({t, l, c:false}))
   .concat(S.customPunish.filter(c=>c.l===l).map(c=>({t:c.t, l, c:true})));
-/* 実際の抽選対象：レベルON かつ 一覧でON */
+/* 実際の抽選対象。枠数ぶん同じものを積むので、数が多いほど当たりやすい */
 const pool = () => {
   let a = [];
-  S.levels.forEach(l => allOf(l).forEach(i => { if(!isOff(i.t)) a.push({t:i.t, l}); }));
-  return a.length ? a : [{t:"一覧で1つ以上ONにしてね", l:1}];
+  S.levels.forEach(l => allOf(l).forEach(i => {
+    for(let k = qty(i.t); k > 0; k--) a.push({t:i.t, l});
+  }));
+  return a.length ? a : [{t:"一覧で1つ以上えらんでね", l:1}];
 };
 const rnd = a => a[Math.floor(Math.random()*a.length)];
 const shuffle = a => a.slice().sort(()=>Math.random()-.5);
@@ -746,9 +771,9 @@ function updateSourceBtns(){
   const n = pool().length;
   const few = n <= 6;
   $("#reshuffle").disabled = few;
-  $("#reshuffle").textContent = few ? `ONにした${n}個をすべて表示中` : "別の6つに入れ替える";
+  $("#reshuffle").textContent = few ? `いまの${n}枠をすべて表示中` : "別の6つに入れ替える";
   $("#redeal").disabled = few;
-  $("#redeal").textContent = few ? `ONにした${n}個をすべて配置中` : "カードを配り直す";
+  $("#redeal").textContent = few ? `いまの${n}枠をすべて配置中` : "カードを配り直す";
 }
 $("#redeal").onclick = () => { deal(); toast("配り直しました"); beep(700,.05); };
 
@@ -809,7 +834,7 @@ $("#mTimer").onclick = function(){
 function renderSheet(){
   let h = "";
   [1,2,3].forEach(l=>{
-    const items = allOf(l), onN = items.filter(i=>!isOff(i.t)).length;
+    const items = allOf(l), onN = items.filter(i=>qty(i.t)>0).length;
     const lvOn = S.levels.includes(l), dim = lvOn ? "" : "dim";
     h += `<div class="secHead">
       <b style="color:${LVCOL[l]}">Lv${l} ${LVNAME[l]}</b>
@@ -817,19 +842,27 @@ function renderSheet(){
       <div class="mini"><button data-all="${l}">全ON</button><button data-none="${l}">全OFF</button></div>
     </div>`;
     if(!lvOn) h += `<p class="note" style="margin:-4px 0 8px">※ このレベルは抽選対象外。上のLvチップでONにすると使われます。</p>`;
-    h += `<div class="${dim}">` + items.map((i,idx)=>`
-      <div class="rule ${isOff(i.t)?"":"on"}" data-l="${l}" data-i="${idx}">
-        <div class="chk">${isOff(i.t)?"":"✓"}</div>
-        <p>${esc(i.t)}</p>
-        ${i.c?`<span class="badge">自作</span>`:""}
-      </div>`).join("") + `</div>`;
+    h += `<div class="${dim}">` + items.map((i,idx)=>{
+      const n = qty(i.t);
+      return `
+      <div class="rule ${n?"on":""} ${n>1?"multi":""}" data-l="${l}" data-i="${idx}">
+        <div class="chk">${n>1?n:(n?"✓":"")}</div>
+        <p>${esc(i.t)}${i.c?` <span class="badge">自作</span>`:""}</p>
+        <div class="stp">
+          <button data-dec ${n<=0?"disabled":""}>−</button>
+          <span class="qn">${n}</span>
+          <button data-inc ${n>=MAXQ?"disabled":""}>＋</button>
+        </div>
+      </div>`;
+    }).join("") + `</div>`;
   });
   $("#sheetBody").innerHTML = h;
-  const n = pool().length;
-  $("#sheetCount").textContent = "抽選対象 " + n + "個";
-  $("#poolInfo").innerHTML = n <= 6
-    ? `ONが<b style="color:var(--pink2)">${n}個</b>なので、ルーレットとカードにはこの${n}個がそのまま並びます。`
-    : `ONにした<b style="color:var(--pink2)">${n}個</b>から毎回ランダムで6つ選ばれます。<br>6個だけONにすれば、その6個で固定できます。`;
+  const p = pool(), n = p.length, kinds = new Set(p.map(x=>x.t)).size;
+  $("#sheetCount").textContent = n + "枠 / " + kinds + "種類";
+  $("#poolInfo").innerHTML = (n <= 6
+    ? `いまの<b style="color:var(--pink2)">${n}枠</b>が、そのままルーレットとカードに並びます。`
+    : `<b style="color:var(--pink2)">${n}枠</b>から毎回ランダムで6つ選ばれます。合計6枠にすると並びが固定されます。`)
+    + `<br>＋で同じ罰ゲームの枠を増やせます（例：キス×5＋ハグ×1で6枠中5枠がキス）。`;
 }
 $$("[data-open-list]").forEach(b => b.onclick = () => {
   renderSheet(); $("#sheet").classList.add("on"); beep(880,.05);
@@ -839,19 +872,20 @@ $("#sheetBody").onclick = e => {
   const b = e.target.closest("button[data-all],button[data-none]");
   if(b){
     const l = +(b.dataset.all || b.dataset.none), on = b.dataset.all !== undefined;
-    allOf(l).forEach(i => {
-      S.off = S.off.filter(x => x !== i.t);
-      if(!on) S.off.push(i.t);
-    });
+    allOf(l).forEach(i => setQty(i.t, on ? 1 : 0));
     save(); renderSheet(); beep(700,.05);
-    toast(`Lv${l} を全部${on?"ON":"OFF"}にしました`);
+    toast(`Lv${l} を全部${on?"1枠ずつに":"0枠に"}しました`);
     return;
   }
   const row = e.target.closest(".rule[data-l]");
   if(!row) return;
+  const stp = e.target.closest("[data-inc],[data-dec]");
   const t = allOf(+row.dataset.l)[+row.dataset.i].t;
-  isOff(t) ? S.off = S.off.filter(x=>x!==t) : S.off.push(t);
-  save(); renderSheet(); beep(760,.04);
+  let n = qty(t);
+  if(stp) n = stp.hasAttribute("data-inc") ? Math.min(MAXQ, n+1) : Math.max(0, n-1);
+  else n = n > 0 ? 0 : 1;            /* 行そのものをタップしたら 使う⇔使わない */
+  setQty(t, n);
+  save(); renderSheet(); beep(n?820:640,.04);
 };
 
 /* ============================================================
@@ -925,7 +959,7 @@ function renderCustoms(){
     : `<p class="note" style="margin:0">まだオリジナルの罰ゲームはありません。</p>`;
   $("#customs").querySelectorAll(".del").forEach(b => b.onclick = () => {
     const [gone] = S.customPunish.splice(+b.dataset.i,1);
-    S.off = S.off.filter(x => x !== gone.t);   /* 一覧のOFF指定も一緒に片付ける */
+    delete S.qty[gone.t];                      /* 一覧の枠数設定も一緒に片付ける */
     save(); renderCustoms(); pick(); deal();
   });
 }
