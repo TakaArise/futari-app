@@ -25,6 +25,7 @@
   --lv2:#fbbf24;
   --lv3:#ff4d6d;
   --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;height:100%;}
@@ -175,6 +176,39 @@ select{
 .dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;}
 .hitem span{color:var(--sub);font-size:10.5px;margin-left:auto;white-space:nowrap;}
 
+/* ===== 一覧シート ===== */
+.sheet{
+  position:fixed;inset:0;z-index:55;display:none;flex-direction:column;
+  background:
+    radial-gradient(120% 60% at 20% 0%, #3a1030 0%, transparent 55%),
+    radial-gradient(120% 60% at 90% 15%, #2b1145 0%, transparent 50%),
+    var(--bg);
+}
+.sheet.on{display:flex;animation:fade .2s;}
+.sheetHead{
+  display:flex;align-items:center;gap:10px;flex:0 0 auto;
+  padding:calc(14px + var(--safe-t)) 16px 12px;border-bottom:1px solid var(--line);
+}
+.sheetHead b{font-size:16px;}
+.sheetHead .done{
+  margin-left:auto;background:linear-gradient(135deg,var(--pink),var(--purple));
+  border:0;color:#fff;font-family:inherit;font-weight:800;font-size:13px;padding:10px 20px;border-radius:12px;
+}
+.sheetBody{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 16px;max-width:520px;width:100%;margin:0 auto;}
+.sheetFoot{
+  flex:0 0 auto;padding:12px 16px calc(12px + var(--safe-b));border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--sub);line-height:1.6;text-align:center;
+}
+.secHead{display:flex;align-items:center;gap:8px;margin:18px 0 9px;}
+.secHead b{font-size:14.5px;}
+.mini{margin-left:auto;display:flex;gap:6px;}
+.mini button{
+  font-size:10.5px;padding:7px 11px;border-radius:10px;background:var(--card2);
+  border:1px solid var(--line);color:var(--txt);font-family:inherit;font-weight:700;
+}
+.badge{font-size:9.5px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.13);color:var(--sub);white-space:nowrap;}
+.dim{opacity:.42;}
+
 /* ===== nav ===== */
 nav{
   position:fixed;left:0;right:0;bottom:0;z-index:40;
@@ -214,6 +248,7 @@ nav button.on{color:var(--pink2);}
     </div>
     <p class="note" style="text-align:center">中央のボタン、または円盤をタップで回転</p>
     <button class="btn ghost" style="margin-top:12px" id="reshuffle">別の6つに入れ替える</button>
+    <button class="btn ghost" style="margin-top:8px" data-open-list>🗂 一覧から自分で選ぶ</button>
   </section>
 
   <!-- ========== カード ========== -->
@@ -222,6 +257,7 @@ nav button.on{color:var(--pink2);}
     <p class="note" style="text-align:center;margin-top:12px">直感で1枚選んでタップ</p>
     <div class="deck" id="deck"></div>
     <button class="btn ghost" style="margin-top:12px" id="redeal">カードを配り直す</button>
+    <button class="btn ghost" style="margin-top:8px" data-open-list>🗂 一覧から自分で選ぶ</button>
   </section>
 
   <!-- ========== ルール ========== -->
@@ -252,6 +288,10 @@ nav button.on{color:var(--pink2);}
 
   <!-- ========== 設定 ========== -->
   <section class="screen" id="s-set">
+    <h2 class="t">罰ゲームを選ぶ</h2>
+    <p class="note">使う罰ゲームを1つずつON/OFFできます。ONにしたものだけがルーレットとカードに出ます。</p>
+    <button class="btn ghost" style="margin-top:10px" data-open-list>🗂 一覧を開く</button>
+
     <h2 class="t">オリジナル罰ゲームを追加</h2>
     <div class="panel">
       <input type="text" id="pInput" placeholder="例：30秒間ぎゅっと手を握る" style="width:100%">
@@ -280,6 +320,17 @@ nav button.on{color:var(--pink2);}
     </div>
     <button class="btn ghost" style="margin-top:10px;color:#ff9aad" id="resetAll">初期状態に戻す</button>
   </section>
+</div>
+
+<!-- ===== 罰ゲーム一覧シート ===== -->
+<div class="sheet" id="sheet">
+  <div class="sheetHead">
+    <b>罰ゲーム一覧</b>
+    <span class="badge" id="sheetCount"></span>
+    <button class="done" id="sheetClose">完了</button>
+  </div>
+  <div class="sheetBody" id="sheetBody"></div>
+  <div class="sheetFoot" id="poolInfo"></div>
 </div>
 
 <!-- ===== 結果モーダル ===== -->
@@ -503,6 +554,7 @@ const def = () => ({
   rulesOn:[0,1,2,5].map(i=>RULES_DEFAULT[i]),
   customRules:[],
   customPunish:[],
+  off:[],          /* 一覧でOFFにした罰ゲームの文言。デフォルトは全ON */
   history:[],
   sound:true,
   qi:-1
@@ -515,11 +567,15 @@ if(S.rulesOn.some(x => typeof x === "number")){
   save();
 }
 
+const isOff = t => S.off.includes(t);
+/* そのレベルの全項目（プリセット＋自作）。一覧表示用 */
+const allOf = l => PUNISH[l].map(t=>({t, l, c:false}))
+  .concat(S.customPunish.filter(c=>c.l===l).map(c=>({t:c.t, l, c:true})));
+/* 実際の抽選対象：レベルON かつ 一覧でON */
 const pool = () => {
   let a = [];
-  S.levels.forEach(l => PUNISH[l].forEach(t => a.push({t, l})));
-  S.customPunish.forEach(c => { if (S.levels.includes(c.l)) a.push(c); });
-  return a.length ? a : [{t:"レベルを1つ以上選んでね", l:1}];
+  S.levels.forEach(l => allOf(l).forEach(i => { if(!isOff(i.t)) a.push({t:i.t, l}); }));
+  return a.length ? a : [{t:"一覧で1つ以上ONにしてね", l:1}];
 };
 const rnd = a => a[Math.floor(Math.random()*a.length)];
 const shuffle = a => a.slice().sort(()=>Math.random()-.5);
@@ -529,6 +585,7 @@ const shuffle = a => a.slice().sort(()=>Math.random()-.5);
 ============================================================ */
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 function toast(m){
   const t = $("#toast"); t.textContent = m; t.classList.add("on");
@@ -578,13 +635,19 @@ function renderChips(){
    ルーレット
 ============================================================ */
 const cv = $("#wheel"), cx = cv.getContext("2d");
-const R = 340, N = 6;
+const R = 340;
 let seg = [], rot = 0, spinning = false;
 
-function pick(){ const p = shuffle(pool()); seg = []; for(let i=0;i<N;i++) seg.push(p[i % p.length]); drawWheel(); }
+/* ONが6個以下ならその全部を並べる（＝自分で6個選べば固定表示）。多ければ6つ抽出 */
+function pick(){
+  const p = shuffle(pool());
+  const n = Math.max(2, Math.min(6, p.length));
+  seg = []; for(let i=0;i<n;i++) seg.push(p[i % p.length]);
+  drawWheel(); updateSourceBtns();
+}
 
 function drawWheel(){
-  const a = Math.PI*2/N;
+  const N = seg.length, a = Math.PI*2/N;
   cx.clearRect(0,0,680,680);
   cx.save(); cx.translate(R,R);
   seg.forEach((s,i)=>{
@@ -641,13 +704,13 @@ function spin(){
     const e = 1 - Math.pow(1-p, 3.6);
     rot = from + total*e;
     drawWheel();
-    const a = Math.PI*2/N;
+    const a = Math.PI*2/seg.length;
     const cur = Math.floor((((Math.PI*1.5 - rot) % (Math.PI*2) + Math.PI*2) % (Math.PI*2)) / a);
     if(cur !== lastSeg){ lastSeg = cur; beep(1200 - p*500, .025, .035); }
     if(p < 1) requestAnimationFrame(loop);
     else{
       spinning = false;
-      const a2 = Math.PI*2/N;
+      const a2 = Math.PI*2/seg.length;
       const idx = Math.floor((((Math.PI*1.5 - rot) % (Math.PI*2) + Math.PI*2) % (Math.PI*2)) / a2);
       show(seg[idx], "ルーレット");
     }
@@ -662,8 +725,7 @@ $("#reshuffle").onclick = () => { pick(); beep(700,.05); toast("入れ替えま�
 ============================================================ */
 let hand = [];
 function deal(){
-  hand = shuffle(pool()).slice(0,6);
-  while(hand.length < 6) hand.push(rnd(pool()));
+  hand = shuffle(pool()).slice(0,6);   /* ONが6枚未満ならその枚数だけ配る */
   $("#deck").innerHTML = hand.map((h,i)=>`
     <button class="pcard" data-i="${i}">
       <div class="inner">
@@ -676,6 +738,17 @@ function deal(){
     c.classList.add("flip"); beep(880,.07); vib(20);
     setTimeout(()=>show(hand[+c.dataset.i], "カード"), 480);
   });
+  updateSourceBtns();
+}
+
+/* ONの数に応じて「入れ替え」ボタンの意味を切り替える */
+function updateSourceBtns(){
+  const n = pool().length;
+  const few = n <= 6;
+  $("#reshuffle").disabled = few;
+  $("#reshuffle").textContent = few ? `ONにした${n}個をすべて表示中` : "別の6つに入れ替える";
+  $("#redeal").disabled = few;
+  $("#redeal").textContent = few ? `ONにした${n}個をすべて配置中` : "カードを配り直す";
 }
 $("#redeal").onclick = () => { deal(); toast("配り直しました"); beep(700,.05); };
 
@@ -731,6 +804,57 @@ $("#mTimer").onclick = function(){
 };
 
 /* ============================================================
+   罰ゲーム一覧（個別ON/OFF）
+============================================================ */
+function renderSheet(){
+  let h = "";
+  [1,2,3].forEach(l=>{
+    const items = allOf(l), onN = items.filter(i=>!isOff(i.t)).length;
+    const lvOn = S.levels.includes(l), dim = lvOn ? "" : "dim";
+    h += `<div class="secHead">
+      <b style="color:${LVCOL[l]}">Lv${l} ${LVNAME[l]}</b>
+      <span class="badge">${onN} / ${items.length}</span>
+      <div class="mini"><button data-all="${l}">全ON</button><button data-none="${l}">全OFF</button></div>
+    </div>`;
+    if(!lvOn) h += `<p class="note" style="margin:-4px 0 8px">※ このレベルは抽選対象外。上のLvチップでONにすると使われます。</p>`;
+    h += `<div class="${dim}">` + items.map((i,idx)=>`
+      <div class="rule ${isOff(i.t)?"":"on"}" data-l="${l}" data-i="${idx}">
+        <div class="chk">${isOff(i.t)?"":"✓"}</div>
+        <p>${esc(i.t)}</p>
+        ${i.c?`<span class="badge">自作</span>`:""}
+      </div>`).join("") + `</div>`;
+  });
+  $("#sheetBody").innerHTML = h;
+  const n = pool().length;
+  $("#sheetCount").textContent = "抽選対象 " + n + "個";
+  $("#poolInfo").innerHTML = n <= 6
+    ? `ONが<b style="color:var(--pink2)">${n}個</b>なので、ルーレットとカードにはこの${n}個がそのまま並びます。`
+    : `ONにした<b style="color:var(--pink2)">${n}個</b>から毎回ランダムで6つ選ばれます。<br>6個だけONにすれば、その6個で固定できます。`;
+}
+$$("[data-open-list]").forEach(b => b.onclick = () => {
+  renderSheet(); $("#sheet").classList.add("on"); beep(880,.05);
+});
+$("#sheetClose").onclick = () => { $("#sheet").classList.remove("on"); pick(); deal(); beep(660,.05); };
+$("#sheetBody").onclick = e => {
+  const b = e.target.closest("button[data-all],button[data-none]");
+  if(b){
+    const l = +(b.dataset.all || b.dataset.none), on = b.dataset.all !== undefined;
+    allOf(l).forEach(i => {
+      S.off = S.off.filter(x => x !== i.t);
+      if(!on) S.off.push(i.t);
+    });
+    save(); renderSheet(); beep(700,.05);
+    toast(`Lv${l} を全部${on?"ON":"OFF"}にしました`);
+    return;
+  }
+  const row = e.target.closest(".rule[data-l]");
+  if(!row) return;
+  const t = allOf(+row.dataset.l)[+row.dataset.i].t;
+  isOff(t) ? S.off = S.off.filter(x=>x!==t) : S.off.push(t);
+  save(); renderSheet(); beep(760,.04);
+};
+
+/* ============================================================
    ルール
 ============================================================ */
 function allRules(){ return RULES_DEFAULT.concat(S.customRules); }
@@ -738,7 +862,7 @@ function renderRules(){
   $("#rules").innerHTML = allRules().map((r,i)=>`
     <div class="rule ${S.rulesOn.includes(r)?"on":""}" data-i="${i}">
       <div class="chk">${S.rulesOn.includes(r)?"✓":""}</div>
-      <p>${r}</p>
+      <p>${esc(r)}</p>
       ${i >= RULES_DEFAULT.length ? `<button class="del" data-d="${i}">✕</button>` : ""}
     </div>`).join("");
   $("#rules").querySelectorAll(".rule").forEach(el => el.onclick = e => {
@@ -754,7 +878,7 @@ function renderRules(){
   });
   const on = S.rulesOn.filter(r => allRules().includes(r));
   $("#activeRules").innerHTML = on.length
-    ? on.map(r=>`<div style="font-size:13.5px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07)">🔺 ${r} → 罰ゲーム</div>`).join("")
+    ? on.map(r=>`<div style="font-size:13.5px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07)">🔺 ${esc(r)} → 罰ゲーム</div>`).join("")
     : `<p class="note" style="margin:0">まだルールがONになっていません。</p>`;
 }
 $("#addRule").onclick = () => {
@@ -796,11 +920,13 @@ function renderCustoms(){
     ? S.customPunish.map((c,i)=>`
       <div class="rule on" style="margin-bottom:6px">
         <div class="dot" style="background:${LVCOL[c.l]}"></div>
-        <p>${c.t}</p><button class="del" data-i="${i}">✕</button>
+        <p>${esc(c.t)}</p><button class="del" data-i="${i}">✕</button>
       </div>`).join("")
     : `<p class="note" style="margin:0">まだオリジナルの罰ゲームはありません。</p>`;
   $("#customs").querySelectorAll(".del").forEach(b => b.onclick = () => {
-    S.customPunish.splice(+b.dataset.i,1); save(); renderCustoms(); pick();
+    const [gone] = S.customPunish.splice(+b.dataset.i,1);
+    S.off = S.off.filter(x => x !== gone.t);   /* 一覧のOFF指定も一緒に片付ける */
+    save(); renderCustoms(); pick(); deal();
   });
 }
 function renderHistory(){
@@ -808,7 +934,7 @@ function renderHistory(){
     ? S.history.slice(0,20).map(h=>`
       <div class="hitem">
         <div class="dot" style="background:${LVCOL[h.l]}"></div>
-        ${h.t}<span>${h.m}</span>
+        ${esc(h.t)}<span>${esc(h.m)}</span>
       </div>`).join("")
     : `<p class="note">まだ履歴がありません。</p>`;
 }
