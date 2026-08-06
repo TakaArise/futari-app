@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#12080f">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>ふたりのキョリ</title>
+<style>
+:root{
+  --bg:#12080f;
+  --bg2:#1d0e1a;
+  --card:rgba(255,255,255,.06);
+  --card2:rgba(255,255,255,.10);
+  --line:rgba(255,255,255,.12);
+  --txt:#fff4fa;
+  --sub:rgba(255,244,250,.55);
+  --pink:#ff5c8a;
+  --pink2:#ff8fb1;
+  --purple:#8b5cf6;
+  --gold:#ffd166;
+  --lv1:#4ade80;
+  --lv2:#fbbf24;
+  --lv3:#ff4d6d;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  background:
+    radial-gradient(120% 80% at 20% 0%, #3a1030 0%, transparent 55%),
+    radial-gradient(120% 80% at 90% 15%, #2b1145 0%, transparent 50%),
+    var(--bg);
+  color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  overscroll-behavior:none;
+  user-select:none;
+}
+#app{max-width:520px;margin:0 auto;padding:14px 16px calc(96px + var(--safe-b));min-height:100%;}
+
+/* ===== header ===== */
+header{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 14px;}
+.logo{font-size:19px;font-weight:800;letter-spacing:.04em;}
+.logo span{background:linear-gradient(90deg,var(--pink),var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent;}
+.count{font-size:11px;color:var(--sub);}
+
+/* ===== common ===== */
+.screen{display:none;animation:fade .25s ease;}
+.screen.on{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+h2.t{font-size:15px;margin:18px 0 10px;display:flex;align-items:center;gap:7px;}
+h2.t::before{content:"";width:3px;height:15px;border-radius:2px;background:linear-gradient(var(--pink),var(--purple));}
+.note{font-size:11.5px;color:var(--sub);line-height:1.7;margin:6px 0 0;}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;backdrop-filter:blur(8px);}
+
+.btn{
+  width:100%;border:0;border-radius:16px;padding:17px;font-size:16px;font-weight:800;
+  color:#fff;background:linear-gradient(135deg,var(--pink),var(--purple));
+  box-shadow:0 8px 24px rgba(255,92,138,.32);font-family:inherit;
+  transition:transform .12s,opacity .12s;
+}
+.btn:active{transform:scale(.97);}
+.btn.ghost{background:var(--card2);box-shadow:none;border:1px solid var(--line);font-size:14px;padding:14px;}
+.btn.sm{padding:11px;font-size:13px;border-radius:12px;}
+.btn[disabled]{opacity:.45;}
+
+/* ===== level chips ===== */
+.chips{display:flex;gap:8px;}
+.chip{
+  flex:1;text-align:center;padding:11px 4px;border-radius:14px;font-size:12px;font-weight:700;
+  background:var(--card);border:1.5px solid var(--line);color:var(--sub);transition:.15s;
+}
+.chip .n{display:block;font-size:10px;font-weight:600;opacity:.8;margin-top:3px;}
+.chip.on{color:#fff;}
+.chip[data-lv="1"].on{background:rgba(74,222,128,.18);border-color:var(--lv1);}
+.chip[data-lv="2"].on{background:rgba(251,191,36,.18);border-color:var(--lv2);}
+.chip[data-lv="3"].on{background:rgba(255,77,109,.20);border-color:var(--lv3);}
+
+/* ===== roulette ===== */
+.wheelWrap{position:relative;width:100%;aspect-ratio:1;margin:14px auto 4px;max-width:340px;}
+canvas{width:100%;height:100%;display:block;filter:drop-shadow(0 10px 30px rgba(0,0,0,.5));}
+.pin{
+  position:absolute;top:-4px;left:50%;transform:translateX(-50%);
+  width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;
+  border-top:26px solid var(--gold);z-index:3;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));
+}
+.hub{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:60px;height:60px;border-radius:50%;z-index:2;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  border:0;color:#fff;font-size:13px;font-weight:900;font-family:inherit;
+  box-shadow:0 6px 18px rgba(0,0,0,.5);
+}
+.hub:active{transform:translate(-50%,-50%) scale(.93);}
+
+/* ===== cards ===== */
+.deck{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 4px;}
+.pcard{
+  aspect-ratio:.66;border-radius:14px;position:relative;perspective:800px;background:none;border:0;padding:0;
+}
+.pcard .inner{position:absolute;inset:0;transition:transform .5s;transform-style:preserve-3d;}
+.pcard.flip .inner{transform:rotateY(180deg);}
+.face{
+  position:absolute;inset:0;border-radius:14px;backface-visibility:hidden;
+  display:flex;align-items:center;justify-content:center;font-size:26px;
+  border:1px solid var(--line);
+}
+.front{background:linear-gradient(150deg,#3b1533,#241040);}
+.back{background:linear-gradient(150deg,var(--pink),var(--purple));transform:rotateY(180deg);font-size:22px;}
+.pcard:active .inner{transform:scale(.96);}
+.pcard.flip:active .inner{transform:rotateY(180deg);}
+
+/* ===== result modal ===== */
+.modal{
+  position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:22px;
+  background:rgba(8,3,8,.78);backdrop-filter:blur(6px);
+}
+.modal.on{display:flex;animation:fade .2s;}
+.rbox{
+  width:100%;max-width:400px;border-radius:26px;padding:26px 22px;text-align:center;
+  background:linear-gradient(160deg,#2a0f28,#1a0b26);border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 24px 60px rgba(0,0,0,.6);animation:pop .35s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+.rlv{display:inline-block;font-size:11px;font-weight:800;padding:5px 12px;border-radius:99px;margin-bottom:14px;}
+.rtxt{font-size:23px;font-weight:900;line-height:1.55;margin:0 0 6px;}
+.rsub{font-size:12px;color:var(--sub);margin:10px 0 20px;line-height:1.7;}
+.rbtns{display:flex;flex-direction:column;gap:9px;}
+
+/* ===== timer ===== */
+.tnum{font-size:74px;font-weight:900;letter-spacing:-.03em;margin:6px 0 2px;
+  background:linear-gradient(180deg,#fff,var(--pink2));-webkit-background-clip:text;background-clip:text;color:transparent;}
+.ring{width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;margin:14px 0 20px;}
+.ring i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--pink),var(--purple));transition:width 1s linear;}
+
+/* ===== rules ===== */
+.rule{
+  display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:14px;
+  background:var(--card);border:1px solid var(--line);margin-bottom:8px;
+}
+.rule .chk{
+  width:22px;height:22px;flex:0 0 22px;border-radius:7px;border:1.5px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;
+}
+.rule.on{border-color:var(--pink);background:rgba(255,92,138,.10);}
+.rule.on .chk{background:var(--pink);border-color:var(--pink);}
+.rule p{margin:0;font-size:13.5px;line-height:1.5;flex:1;}
+.rule .del{background:none;border:0;color:var(--sub);font-size:17px;padding:0 2px;}
+
+.addrow{display:flex;gap:8px;margin-top:10px;}
+input[type=text]{
+  flex:1;background:var(--card);border:1px solid var(--line);border-radius:13px;
+  padding:13px;color:var(--txt);font-size:14px;font-family:inherit;user-select:text;
+}
+input::placeholder{color:rgba(255,244,250,.3);}
+select{
+  background:var(--card);border:1px solid var(--line);border-radius:13px;padding:13px;
+  color:var(--txt);font-size:14px;font-family:inherit;
+}
+.addrow .btn{width:auto;padding:0 18px;font-size:14px;border-radius:13px;}
+
+/* ===== question ===== */
+.qcard{
+  border-radius:22px;padding:30px 22px;min-height:210px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  background:linear-gradient(160deg,#33123a,#1c0d33);border:1px solid var(--line);margin:14px 0;
+}
+.qcard .q{font-size:20px;font-weight:800;line-height:1.7;}
+.qcard .num{font-size:11px;color:var(--sub);margin-bottom:14px;letter-spacing:.1em;}
+
+/* ===== history ===== */
+.hitem{display:flex;gap:10px;align-items:center;padding:11px 13px;background:var(--card);border-radius:12px;margin-bottom:7px;font-size:12.5px;}
+.dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;}
+.hitem span{color:var(--sub);font-size:10.5px;margin-left:auto;white-space:nowrap;}
+
+/* ===== nav ===== */
+nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;
+  display:flex;max-width:520px;margin:0 auto;
+  padding:8px 6px calc(8px + var(--safe-b));
+  background:rgba(18,8,15,.86);backdrop-filter:blur(16px);border-top:1px solid var(--line);
+}
+nav button{
+  flex:1;background:none;border:0;color:var(--sub);font-family:inherit;
+  font-size:10px;font-weight:700;padding:5px 0;display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+nav button i{font-size:19px;font-style:normal;line-height:1;}
+nav button.on{color:var(--pink2);}
+.toast{
+  position:fixed;bottom:calc(88px + var(--safe-b));left:50%;transform:translateX(-50%);
+  background:rgba(255,255,255,.14);backdrop-filter:blur(10px);color:#fff;padding:11px 20px;border-radius:99px;
+  font-size:12.5px;font-weight:700;z-index:60;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-6px);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo">ふたりの<span>キョリ</span></div>
+    <div class="count" id="hcount"></div>
+  </header>
+
+  <!-- ========== ルーレット ========== -->
+  <section class="screen on" id="s-roulette">
+    <div class="chips" id="chips-r"></div>
+    <div class="wheelWrap">
+      <div class="pin"></div>
+      <canvas id="wheel" width="680" height="680"></canvas>
+      <button class="hub" id="spin">START</button>
+    </div>
+    <p class="note" style="text-align:center">中央のボタン、または円盤をタップで回転</p>
+    <button class="btn ghost" style="margin-top:12px" id="reshuffle">別の6つに入れ替える</button>
+  </section>
+
+  <!-- ========== カード ========== -->
+  <section class="screen" id="s-card">
+    <div class="chips" id="chips-c"></div>
+    <p class="note" style="text-align:center;margin-top:12px">直感で1枚選んでタップ</p>
+    <div class="deck" id="deck"></div>
+    <button class="btn ghost" style="margin-top:12px" id="redeal">カードを配り直す</button>
+  </section>
+
+  <!-- ========== ルール ========== -->
+  <section class="screen" id="s-rule">
+    <h2 class="t">罰ゲーム発動ルール</h2>
+    <p class="note">ONにしたルールを2人で確認。破った方が罰ゲームです。</p>
+    <div id="rules" style="margin-top:12px"></div>
+    <div class="addrow">
+      <input type="text" id="ruleInput" placeholder="オリジナルのルールを追加">
+      <button class="btn" id="addRule">追加</button>
+    </div>
+
+    <h2 class="t">今ONのルール</h2>
+    <div class="panel" id="activeRules"></div>
+  </section>
+
+  <!-- ========== 質問 ========== -->
+  <section class="screen" id="s-quiz">
+    <h2 class="t">距離が縮まる質問</h2>
+    <p class="note">交互に引いて、正直に答えるだけ。答えられなかったら罰ゲーム行き。</p>
+    <div class="qcard">
+      <div class="num" id="qnum">TAP TO START</div>
+      <div class="q" id="qtxt">準備はいい？</div>
+    </div>
+    <button class="btn" id="nextQ">質問を引く</button>
+    <button class="btn ghost" style="margin-top:10px" id="qtoPunish">答えられなかった → 罰ゲーム</button>
+  </section>
+
+  <!-- ========== 設定 ========== -->
+  <section class="screen" id="s-set">
+    <h2 class="t">オリジナル罰ゲームを追加</h2>
+    <div class="panel">
+      <input type="text" id="pInput" placeholder="例：30秒間ぎゅっと手を握る" style="width:100%">
+      <div class="addrow">
+        <select id="pLevel">
+          <option value="1">Lv1 ふれあい</option>
+          <option value="2" selected>Lv2 きゅん</option>
+          <option value="3">Lv3 ドキドキ</option>
+        </select>
+        <button class="btn" id="addP" style="flex:1">追加する</button>
+      </div>
+      <div id="customs" style="margin-top:14px"></div>
+    </div>
+
+    <h2 class="t">履歴</h2>
+    <div id="history"></div>
+    <button class="btn ghost" style="margin-top:10px" id="clearH">履歴を消す</button>
+
+    <h2 class="t">その他</h2>
+    <div class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13.5px">
+        <span>効果音・バイブ</span>
+        <button class="btn sm" id="sndBtn" style="width:auto;padding:9px 18px">ON</button>
+      </div>
+      <p class="note">※ ホーム画面に追加するとアプリのように全画面で使えます（Safari → 共有 → ホーム画面に追加）</p>
+    </div>
+    <button class="btn ghost" style="margin-top:10px;color:#ff9aad" id="resetAll">初期状態に戻す</button>
+  </section>
+</div>
+
+<!-- ===== 結果モーダル ===== -->
+<div class="modal" id="modal">
+  <div class="rbox">
+    <div class="rlv" id="rlv">Lv2</div>
+    <p class="rtxt" id="rtxt"></p>
+    <p class="rsub" id="rsub">拒否権は1ゲームにつき1回まで。</p>
+    <div class="ring" id="ringWrap" style="display:none"><i id="ring"></i></div>
+    <div class="tnum" id="tnum" style="display:none">30</div>
+    <div class="rbtns">
+      <button class="btn" id="mTimer">タイマー開始</button>
+      <button class="btn ghost" id="mAgain">引き直す</button>
+      <button class="btn ghost" id="mClose">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<nav>
+  <button class="on" data-s="roulette"><i>🎯</i>ルーレット</button>
+  <button data-s="card"><i>🃏</i>カード</button>
+  <button data-s="rule"><i>📜</i>ルール</button>
+  <button data-s="quiz"><i>💬</i>質問</button>
+  <button data-s="set"><i>⚙️</i>設定</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   データ
+============================================================ */
+const PUNISH = {
+  1:[
+    "30秒間ずっと手をつなぐ",
+    "相手の目を10秒間見つめる",
+    "顔と顔を20cm以内に近づけて10秒キープ",
+    "相手のいいところを3つ、目を見て言う",
+    "ハイタッチして、そのまま5秒手を離さない",
+    "相手の手のひらに指で文字を書く。当たるまで続行",
+    "相手の肩に1分間もたれかかる",
+    "相手を「かわいい／かっこいい」と3回ほめる",
+    "今その場で相手のあだ名を決めて、今日はそれで呼ぶ",
+    "相手のいちばん好きな仕草をマネする",
+    "腕を組んで20秒キープ",
+    "相手の頭を10秒なでる",
+    "相手の第一印象を正直に言う",
+    "相手にしてほしいことを1つだけお願いする",
+    "小指だけをつないで30秒歩く",
+    "手のひらを合わせて大きさを比べ、感想を言う",
+    "相手の手を10秒間、両手で包む",
+    "背中合わせになって、どっちが高いか測る",
+    "相手の目を見て「ありがとう」と3回言う",
+    "今日の相手の服装か髪型を3つほめる",
+    "肩と肩をくっつけて1分間すごす",
+    "相手と小指を絡めて、約束をひとつする",
+    "相手の名前を、いちばん優しい声で3回呼ぶ",
+    "30秒間、相手とまったく同じポーズで固まる",
+    "相手のほっぺを両手ではさんで5秒キープ",
+    "今日いちばん楽しかった瞬間を、手をつないだまま話す",
+    "目を合わせたまま10秒しりとり。そらしたらもう1回",
+    "相手の手を握って、脈を10秒数えてもらう",
+    "今この瞬間の2人の写真を1枚撮る",
+    "ハイタッチ10回。テンポがズレたらもう1回"
+  ],
+  2:[
+    "30秒間、恋人つなぎで手をつなぐ",
+    "20秒間、無言で見つめ合う（先に笑った方はもう1回）",
+    "相手のひざに2分間、頭をのせる",
+    "後ろから20秒ハグする",
+    "相手の耳元で小さな声で「好き」と言う",
+    "おでこをくっつけて10秒キープ",
+    "相手の髪を1分間なでる",
+    "相手の手を取って、手の甲に10秒くちびるを近づける",
+    "お姫様抱っこ or おんぶで10歩あるく",
+    "顔の距離10cmで、10秒見つめ合う",
+    "相手の心臓の音を10秒聞く",
+    "相手をキュンとさせた瞬間を正直に告白する",
+    "腕枕を1分間してもらう／してあげる",
+    "相手の指を1本ずつ数えながら握る",
+    "今いちばん言いたいことを、手を握ったまま言う",
+    "相手の匂いを近くで嗅いで、感想を言う",
+    "目を閉じた相手のほっぺを、指で10秒なでる",
+    "相手のひざに手を置いて、30秒会話する",
+    "背中合わせで座って、30秒しゃべらずにすごす",
+    "相手の手を自分のほっぺに当てて10秒",
+    "指を絡めた手だけを、写真に1枚撮る",
+    "相手の腕にぎゅっとつかまって1分間すごす",
+    "相手の頭を自分の肩にのせて、1分間動かない",
+    "相手のいいところを、耳元でささやく",
+    "手をつないだまま、2人とも目を閉じて10秒",
+    "相手の手をとって、自分の心臓の上に10秒あてる",
+    "「今日、まだ帰したくない」と目を見て言う",
+    "相手の背中に、指で「好き」と書く",
+    "相手の首すじに5秒だけ顔を近づける",
+    "手を握ったまま、相手からの質問3つに正直に答える",
+    "ハグしたまま、相手の心臓の音が聞こえるまで動かない",
+    "相手の顔を10秒観察して、初めて会った日との違いを言う",
+    "相手のいちばん好きなパーツを言って、そこに5秒触れる",
+    "相手の手首の内側を、指で10秒なぞる"
+  ],
+  3:[
+    "顔の距離5cmで10秒間、目をそらさない",
+    "30秒間ハグしたまま動かない",
+    "ほっぺにキス",
+    "目を閉じて、10秒間されるがまま",
+    "相手のひざの上に座って写真を1枚撮る",
+    "今まで言えなかった本音をひとつ話す",
+    "相手の理想のデートプランを、手を握りながら話す",
+    "3分間、手を離さずに会話する",
+    "「何でもお願いを聞く券」を相手に発行する",
+    "相手がやめてと言うまで見つめ続ける",
+    "耳元で相手の名前を3回呼ぶ",
+    "相手の好きなところを10個、止まらずに言い切る",
+    "5秒間、鼻と鼻をくっつける",
+    "次のデートの行き先を、その場で決めて約束する",
+    "相手に今いちばんしてほしいことをお願いして、叶えてもらう",
+    "相手のくちびるの3cm手前まで顔を近づけて、5秒止まる",
+    "目を閉じて、相手が「もういい」と言うまで動かない",
+    "30秒間、相手の目を見ながら名前を呼び続ける",
+    "相手の手を握って「好き」と3回言う",
+    "後ろから抱きしめて、耳元で相手の名前を呼ぶ",
+    "今の2人の関係に名前をつけるなら？を目を見て答える",
+    "自分がされたら弱いことを、正直に白状する",
+    "相手のひざの上に座って30秒すごす",
+    "くちびるが触れる寸前まで近づいて、先に離れた方はもう1回",
+    "目を閉じた相手の顔の輪郭を、指でゆっくり10秒なぞる",
+    "相手のことが今何点好きか、10点満点で答えて理由も言う",
+    "最後に私にドキッとしたのはいつか、目を見て答える",
+    "この後どうしたいか、正直に言う",
+    "相手の名前を、いちばん恥ずかしい呼び方で呼ぶ",
+    "相手がいま一番してほしいことを聞いて、その通りにする"
+  ]
+};
+
+const RULES_DEFAULT = [
+  "「疲れた」と言ったら",
+  "スマホを触ったら",
+  "敬語を使ったら",
+  "相手の名前を呼ばずに話しかけたら",
+  "「でも」「だって」と言ったら",
+  "質問に3秒以内に答えられなかったら",
+  "目をそらしたら",
+  "沈黙が5秒続いたら",
+  "ほめられて照れたら",
+  "笑ったら",
+  "相手の話をさえぎったら",
+  "「別に」「普通」で答えたら",
+  "質問に質問で返したら",
+  "自分の話を1分以上続けたら",
+  "元カレ・元カノの話をしたら",
+  "仕事や勉強の話を始めたら",
+  "声が小さくて聞き返されたら",
+  "あくびをしたら",
+  "10分間まったく相手に触れなかったら",
+  "相手より先に飲みものを飲み終えたら"
+];
+
+const QUESTIONS = [
+  "私の第一印象は？正直に。",
+  "最近、私にキュンとした瞬間は？",
+  "私のどこが好き？3つ言って。",
+  "一緒に行きたい場所を1つ挙げるなら？",
+  "私に直してほしいところ、1つだけ言うなら？",
+  "恋人にされたら嬉しいことは？",
+  "今、私のことを何て呼びたい？",
+  "今まででいちばん幸せだった瞬間は？",
+  "もし明日が最後の日なら、私と何がしたい？",
+  "私に隠していること、1つだけ言うなら？",
+  "私といるときの自分は、どんな自分？",
+  "私のどんな表情が好き？",
+  "初めて会った日のこと、どれくらい覚えてる？",
+  "こういうときは甘えてほしい、っていう瞬間ある？",
+  "私に言われて嬉しかった言葉は？",
+  "1週間休みがあったら、私と何する？",
+  "私の家族に会うとしたら、何て自己紹介する？",
+  "10年後、私たちはどうなってると思う？",
+  "私のこと、友達にどう説明してる？",
+  "いま私に触れていい場所を1つ選ぶなら？",
+  "ケンカしたとき、どうやって仲直りしたい？",
+  "私のいちばん意外だったところは？",
+  "「この人だ」って思った瞬間はあった？",
+  "今この瞬間、何を考えてる？",
+  "私に、いま一番言いたいことは？",
+  "私の名前を呼ぶとき、どんな気持ちで呼んでる？",
+  "私と会う前の日って、何してる？",
+  "私にしてもらって、いちばん嬉しかったことは？",
+  "私といて、いちばん笑ったのはいつ？",
+  "1日のうち、私のことを考えるのは何回くらい？",
+  "私に嫉妬したこと、ある？",
+  "私が落ち込んでたら、どうしてほしい？",
+  "逆に、あなたが落ち込んでるときは何をしてほしい？",
+  "私にいちばん言われたい言葉は？",
+  "私と過ごす理想の休日を、朝から順番に教えて。",
+  "恋愛で絶対に譲れないことは？",
+  "私の癖、何か気づいてる？",
+  "私と出会ってなかったら、今ごろ何してたと思う？",
+  "好きな人にだけ見せる自分って、どんな自分？",
+  "私に甘えたくなるのは、どんなとき？",
+  "2人だけの秘密を1つ作るなら、何にする？",
+  "私を一言で表すと？",
+  "今日の私、100点満点で何点？理由も。",
+  "私に触れたくなるのは、どんな瞬間？",
+  "今まででいちばん人を好きになったときのこと、教えて。",
+  "恋人には言われたくない言葉は？",
+  "私にまだ見せてない一面、ある？",
+  "一緒に住むなら、どんな部屋にしたい？",
+  "私のどこにいちばん安心する？",
+  "今日、家に帰ってから何を思い出すと思う？"
+];
+
+const LVNAME = {1:"ふれあい",2:"きゅん",3:"ドキドキ"};
+const LVCOL  = {1:"#4ade80",2:"#fbbf24",3:"#ff4d6d"};
+
+/* ============================================================
+   状態
+============================================================ */
+const KEY = "futari_kyori_v1";
+const def = () => ({
+  levels:[1,2],
+  rulesOn:[0,1,2,5].map(i=>RULES_DEFAULT[i]),
+  customRules:[],
+  customPunish:[],
+  history:[],
+  sound:true,
+  qi:-1
+});
+let S = Object.assign(def(), JSON.parse(localStorage.getItem(KEY) || "{}"));
+const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+/* 旧版はONルールを番号で保存していた。項目追加でズレるのでテキスト保存に移行 */
+if(S.rulesOn.some(x => typeof x === "number")){
+  S.rulesOn = S.rulesOn.filter(i => i < 10).map(i => RULES_DEFAULT[i]).filter(Boolean); // 旧デフォルトは10個
+  save();
+}
+
+const pool = () => {
+  let a = [];
+  S.levels.forEach(l => PUNISH[l].forEach(t => a.push({t, l})));
+  S.customPunish.forEach(c => { if (S.levels.includes(c.l)) a.push(c); });
+  return a.length ? a : [{t:"レベルを1つ以上選んでね", l:1}];
+};
+const rnd = a => a[Math.floor(Math.random()*a.length)];
+const shuffle = a => a.slice().sort(()=>Math.random()-.5);
+
+/* ============================================================
+   共通UI
+============================================================ */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+function toast(m){
+  const t = $("#toast"); t.textContent = m; t.classList.add("on");
+  clearTimeout(t._id); t._id = setTimeout(()=>t.classList.remove("on"), 1500);
+}
+let actx;
+function beep(f=880, d=.06, v=.05){
+  if(!S.sound) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.value = f; o.type = "sine";
+    g.gain.value = v; o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + d);
+  }catch(e){}
+}
+const vib = p => { if(S.sound && navigator.vibrate) navigator.vibrate(p); };
+
+/* タブ */
+$$("nav button").forEach(b => b.onclick = () => {
+  $$("nav button").forEach(x => x.classList.remove("on"));
+  $$(".screen").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+  $("#s-" + b.dataset.s).classList.add("on");
+  if (b.dataset.s === "card") deal();
+  if (b.dataset.s === "set") { renderCustoms(); renderHistory(); }
+  beep(660,.04);
+});
+
+/* レベルチップ */
+function renderChips(){
+  ["#chips-r","#chips-c"].forEach(sel=>{
+    $(sel).innerHTML = [1,2,3].map(l=>`
+      <button class="chip ${S.levels.includes(l)?"on":""}" data-lv="${l}">
+        Lv${l}<span class="n">${LVNAME[l]}</span>
+      </button>`).join("");
+    $(sel).querySelectorAll(".chip").forEach(c => c.onclick = () => {
+      const l = +c.dataset.lv;
+      S.levels.includes(l) ? S.levels = S.levels.filter(x=>x!==l) : S.levels.push(l);
+      if(!S.levels.length) S.levels = [l];
+      save(); renderChips(); pick(); deal(); beep(740,.04);
+    });
+  });
+}
+
+/* ============================================================
+   ルーレット
+============================================================ */
+const cv = $("#wheel"), cx = cv.getContext("2d");
+const R = 340, N = 6;
+let seg = [], rot = 0, spinning = false;
+
+function pick(){ const p = shuffle(pool()); seg = []; for(let i=0;i<N;i++) seg.push(p[i % p.length]); drawWheel(); }
+
+function drawWheel(){
+  const a = Math.PI*2/N;
+  cx.clearRect(0,0,680,680);
+  cx.save(); cx.translate(R,R);
+  seg.forEach((s,i)=>{
+    const st = rot + i*a;
+    cx.beginPath(); cx.moveTo(0,0); cx.arc(0,0,R-10,st,st+a); cx.closePath();
+    const g = cx.createRadialGradient(0,0,40,0,0,R);
+    const base = LVCOL[s.l];
+    g.addColorStop(0, i%2 ? shade(base,-46) : shade(base,-30));
+    g.addColorStop(1, i%2 ? shade(base,-16) : shade(base,0));
+    cx.fillStyle = g; cx.fill();
+    cx.strokeStyle = "rgba(255,255,255,.20)"; cx.lineWidth = 3; cx.stroke();
+
+    const mid = st + a/2;
+    const nm = ((mid % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+    const flip = nm > Math.PI/2 && nm < Math.PI*1.5;
+    cx.save(); cx.rotate(mid); cx.fillStyle = "#fff";
+    cx.font = "bold 23px -apple-system,'Hiragino Sans',sans-serif";
+    cx.shadowColor = "rgba(0,0,0,.6)"; cx.shadowBlur = 6;
+    if(flip){ cx.rotate(Math.PI); cx.textAlign = "left"; wrap(s.t, -(R-45), 215, 28); }
+    else{ cx.textAlign = "right"; wrap(s.t, R-45, 215, 28); }
+    cx.restore();
+  });
+  cx.beginPath(); cx.arc(0,0,R-8,0,Math.PI*2);
+  cx.strokeStyle = "rgba(255,255,255,.35)"; cx.lineWidth = 6; cx.stroke();
+  cx.restore();
+}
+function wrap(txt,x,max,lh){
+  const MAX = 3, lines = []; let cur = "", done = false;
+  for(const ch of txt){
+    if(cx.measureText(cur+ch).width > max){
+      if(lines.length === MAX-1){ cur = cur.slice(0,-1) + "…"; done = true; break; }
+      lines.push(cur); cur = ch;
+    } else cur += ch;
+  }
+  lines.push(cur);
+  const off = -(lines.length-1)*lh/2;
+  lines.forEach((l,i)=>cx.fillText(l, x, off + i*lh + 8));
+}
+function shade(hex,p){
+  const n = parseInt(hex.slice(1),16);
+  const f = c => Math.max(0,Math.min(255, c + p));
+  return "rgb(" + f(n>>16) + "," + f((n>>8)&255) + "," + f(n&255) + ")";
+}
+
+function spin(){
+  if(spinning) return;
+  spinning = true;
+  const dur = 4200 + Math.random()*900;
+  const total = Math.PI*2*(6 + Math.random()*4) + Math.random()*Math.PI*2;
+  const from = rot, t0 = performance.now();
+  let lastSeg = -1;
+  (function loop(now){
+    const p = Math.min(1,(now-t0)/dur);
+    const e = 1 - Math.pow(1-p, 3.6);
+    rot = from + total*e;
+    drawWheel();
+    const a = Math.PI*2/N;
+    const cur = Math.floor((((Math.PI*1.5 - rot) % (Math.PI*2) + Math.PI*2) % (Math.PI*2)) / a);
+    if(cur !== lastSeg){ lastSeg = cur; beep(1200 - p*500, .025, .035); }
+    if(p < 1) requestAnimationFrame(loop);
+    else{
+      spinning = false;
+      const a2 = Math.PI*2/N;
+      const idx = Math.floor((((Math.PI*1.5 - rot) % (Math.PI*2) + Math.PI*2) % (Math.PI*2)) / a2);
+      show(seg[idx], "ルーレット");
+    }
+  })(t0);
+}
+$("#spin").onclick = spin;
+cv.onclick = spin;
+$("#reshuffle").onclick = () => { pick(); beep(700,.05); toast("入れ替えました"); };
+
+/* ============================================================
+   カード
+============================================================ */
+let hand = [];
+function deal(){
+  hand = shuffle(pool()).slice(0,6);
+  while(hand.length < 6) hand.push(rnd(pool()));
+  $("#deck").innerHTML = hand.map((h,i)=>`
+    <button class="pcard" data-i="${i}">
+      <div class="inner">
+        <div class="face front">💗</div>
+        <div class="face back" style="background:linear-gradient(150deg,${LVCOL[h.l]},#8b5cf6)">✨</div>
+      </div>
+    </button>`).join("");
+  $("#deck").querySelectorAll(".pcard").forEach(c => c.onclick = () => {
+    if(c.classList.contains("flip")) return;
+    c.classList.add("flip"); beep(880,.07); vib(20);
+    setTimeout(()=>show(hand[+c.dataset.i], "カード"), 480);
+  });
+}
+$("#redeal").onclick = () => { deal(); toast("配り直しました"); beep(700,.05); };
+
+/* ============================================================
+   結果モーダル + タイマー
+============================================================ */
+let cur = null, timerId = null;
+function show(item, mode){
+  cur = item;
+  clearInterval(timerId);
+  $("#rlv").textContent = "Lv" + item.l + " " + LVNAME[item.l];
+  $("#rlv").style.background = LVCOL[item.l] + "33";
+  $("#rlv").style.color = LVCOL[item.l];
+  $("#rtxt").textContent = item.t;
+  $("#rsub").textContent = "拒否したら次のレベルに強制アップ。";
+  $("#tnum").style.display = "none";
+  $("#ringWrap").style.display = "none";
+  const sec = parseSec(item.t);
+  $("#mTimer").style.display = sec ? "block" : "none";
+  $("#mTimer").dataset.sec = sec || 0;
+  $("#mTimer").textContent = "⏱ " + (sec||0) + "秒 スタート";
+  $("#modal").classList.add("on");
+  beep(1046,.12,.06); vib([30,60,30]);
+  S.history.unshift({t:item.t, l:item.l, m:mode, d:Date.now()});
+  S.history = S.history.slice(0,60); save(); updateCount();
+}
+function parseSec(t){
+  let m = t.match(/(\d+)\s*秒/); if(m) return +m[1];
+  m = t.match(/(\d+)\s*分/); if(m) return +m[1]*60;
+  return 0;
+}
+$("#mClose").onclick = () => { clearInterval(timerId); $("#modal").classList.remove("on"); };
+$("#mAgain").onclick = () => { clearInterval(timerId); show(rnd(pool()), "引き直し"); };
+$("#mTimer").onclick = function(){
+  const total = +this.dataset.sec; if(!total) return;
+  let left = total;
+  $("#tnum").style.display = "block"; $("#ringWrap").style.display = "block";
+  $("#tnum").textContent = left;
+  $("#ring").style.width = "100%";
+  this.textContent = "リセット";
+  clearInterval(timerId);
+  timerId = setInterval(()=>{
+    left--;
+    $("#tnum").textContent = left;
+    $("#ring").style.width = (left/total*100) + "%";
+    if(left <= 3 && left > 0) beep(880,.07,.06);
+    if(left <= 0){
+      clearInterval(timerId);
+      $("#tnum").textContent = "終了！";
+      beep(1400,.35,.08); vib([100,60,100,60,200]);
+    }
+  },1000);
+};
+
+/* ============================================================
+   ルール
+============================================================ */
+function allRules(){ return RULES_DEFAULT.concat(S.customRules); }
+function renderRules(){
+  $("#rules").innerHTML = allRules().map((r,i)=>`
+    <div class="rule ${S.rulesOn.includes(r)?"on":""}" data-i="${i}">
+      <div class="chk">${S.rulesOn.includes(r)?"✓":""}</div>
+      <p>${r}</p>
+      ${i >= RULES_DEFAULT.length ? `<button class="del" data-d="${i}">✕</button>` : ""}
+    </div>`).join("");
+  $("#rules").querySelectorAll(".rule").forEach(el => el.onclick = e => {
+    if(e.target.dataset.d !== undefined){
+      const d = +e.target.dataset.d, txt = allRules()[d];
+      S.customRules.splice(d - RULES_DEFAULT.length, 1);
+      S.rulesOn = S.rulesOn.filter(x=>x!==txt);
+      save(); renderRules(); return;
+    }
+    const t = allRules()[+el.dataset.i];
+    S.rulesOn.includes(t) ? S.rulesOn = S.rulesOn.filter(x=>x!==t) : S.rulesOn.push(t);
+    save(); renderRules(); beep(760,.04);
+  });
+  const on = S.rulesOn.filter(r => allRules().includes(r));
+  $("#activeRules").innerHTML = on.length
+    ? on.map(r=>`<div style="font-size:13.5px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07)">🔺 ${r} → 罰ゲーム</div>`).join("")
+    : `<p class="note" style="margin:0">まだルールがONになっていません。</p>`;
+}
+$("#addRule").onclick = () => {
+  const v = $("#ruleInput").value.trim(); if(!v) return;
+  if(allRules().includes(v)){ toast("同じルールがすでにあります"); return; }
+  S.customRules.push(v);
+  S.rulesOn.push(v);
+  $("#ruleInput").value = ""; save(); renderRules(); toast("ルールを追加しました");
+};
+
+/* ============================================================
+   質問
+============================================================ */
+let qOrder = shuffle(QUESTIONS.map((_,i)=>i)), qp = 0;
+$("#nextQ").onclick = () => {
+  if(qp >= qOrder.length){ qOrder = shuffle(qOrder); qp = 0; }
+  const q = QUESTIONS[qOrder[qp++]];
+  const c = $(".qcard");
+  c.style.transform = "scale(.94)"; c.style.opacity = ".3";
+  setTimeout(()=>{
+    $("#qnum").textContent = "QUESTION " + qp;
+    $("#qtxt").textContent = q;
+    c.style.transition = ".25s"; c.style.transform = "none"; c.style.opacity = "1";
+  },140);
+  beep(920,.06); vib(15);
+};
+$("#qtoPunish").onclick = () => show(rnd(pool()), "質問");
+
+/* ============================================================
+   設定
+============================================================ */
+$("#addP").onclick = () => {
+  const v = $("#pInput").value.trim(); if(!v) return;
+  S.customPunish.push({t:v, l:+$("#pLevel").value});
+  $("#pInput").value = ""; save(); renderCustoms(); pick(); toast("罰ゲームを追加しました");
+};
+function renderCustoms(){
+  $("#customs").innerHTML = S.customPunish.length
+    ? S.customPunish.map((c,i)=>`
+      <div class="rule on" style="margin-bottom:6px">
+        <div class="dot" style="background:${LVCOL[c.l]}"></div>
+        <p>${c.t}</p><button class="del" data-i="${i}">✕</button>
+      </div>`).join("")
+    : `<p class="note" style="margin:0">まだオリジナルの罰ゲームはありません。</p>`;
+  $("#customs").querySelectorAll(".del").forEach(b => b.onclick = () => {
+    S.customPunish.splice(+b.dataset.i,1); save(); renderCustoms(); pick();
+  });
+}
+function renderHistory(){
+  $("#history").innerHTML = S.history.length
+    ? S.history.slice(0,20).map(h=>`
+      <div class="hitem">
+        <div class="dot" style="background:${LVCOL[h.l]}"></div>
+        ${h.t}<span>${h.m}</span>
+      </div>`).join("")
+    : `<p class="note">まだ履歴がありません。</p>`;
+}
+function updateCount(){ $("#hcount").textContent = S.history.length ? "これまで " + S.history.length + " 回" : ""; }
+$("#clearH").onclick = () => { S.history = []; save(); renderHistory(); updateCount(); toast("履歴を消しました"); };
+$("#sndBtn").onclick = function(){ S.sound = !S.sound; this.textContent = S.sound ? "ON" : "OFF"; save(); beep(880,.05); };
+$("#resetAll").onclick = () => {
+  if(!confirm("設定・履歴・追加したルールをすべて消して初期状態に戻します。よろしいですか？")) return;
+  S = def(); save(); location.reload();
+};
+
+/* ============================================================
+   init
+============================================================ */
+renderChips(); pick(); deal(); renderRules(); renderCustoms(); renderHistory(); updateCount();
+$("#sndBtn").textContent = S.sound ? "ON" : "OFF";
+document.addEventListener("touchmove", e => { if(e.touches.length>1) e.preventDefault(); }, {passive:false});
+</script>
+</body>
+</html>
