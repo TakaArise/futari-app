@@ -261,9 +261,18 @@ nav{
 }
 nav button{
   flex:1;background:none;border:0;color:var(--sub);font-family:inherit;
-  font-size:10px;font-weight:700;padding:5px 0;display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-size:10px;font-weight:700;padding:4px 0;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;
 }
-nav button i{font-size:19px;font-style:normal;line-height:1;}
+/* 絵文字は字形ごとに高さが違うので、固定枠の中央に置いて位置を揃える */
+nav button i{
+  font-size:19px;font-style:normal;line-height:1;
+  height:26px;display:flex;align-items:center;justify-content:center;
+}
+nav button .lb{
+  height:14px;display:flex;align-items:center;justify-content:center;
+  line-height:1;white-space:nowrap;
+}
 nav button.on{color:var(--pink2);}
 .toast{
   position:fixed;bottom:calc(88px + var(--safe-b));left:50%;transform:translateX(-50%);
@@ -402,11 +411,11 @@ nav button.on{color:var(--pink2);}
 </div>
 
 <nav>
-  <button class="on" data-s="roulette"><i>🎯</i>ルーレット</button>
-  <button data-s="card"><i>🃏</i>カード</button>
-  <button data-s="rule"><i>📜</i>ルール</button>
-  <button data-s="quiz"><i>💬</i>質問</button>
-  <button data-s="set"><i>⚙️</i>設定</button>
+  <button class="on" data-s="roulette"><i>🎯</i><span class="lb">ルーレット</span></button>
+  <button data-s="card"><i>🃏</i><span class="lb">カード</span></button>
+  <button data-s="rule"><i>📜</i><span class="lb">ルール</span></button>
+  <button data-s="quiz"><i>💬</i><span class="lb">質問</span></button>
+  <button data-s="set"><i>⚙️</i><span class="lb">設定</span></button>
 </nav>
 
 <div class="toast" id="toast"></div>
@@ -538,7 +547,27 @@ const RULES_DEFAULT = [
   "声が小さくて聞き返されたら",
   "あくびをしたら",
   "10分間まったく相手に触れなかったら",
-  "相手より先に飲みものを飲み終えたら"
+  "相手より先に飲みものを飲み終えたら",
+  "相手の目を3秒以上見ていられなかったら",
+  "「うーん」から話し始めたら",
+  "腕や足を組んだら",
+  "ネガティブな言葉を言ったら",
+  "相手の話に「へー」だけで返したら",
+  "自分から質問しないまま3分たったら",
+  "相手の名前を呼び間違えた・噛んだら",
+  "スマホや時計で時間を確認したら",
+  "SNSやネットの話を始めたら",
+  "その場にいない誰かの話を始めたら",
+  "質問に答えず話題を変えたら",
+  "「わからない」で会話を終わらせたら",
+  "声が裏返ったら",
+  "顔が赤くなったら",
+  "相手に背を向けたら",
+  "3回続けて「うん」だけで返したら",
+  "10分間、相手をひとつもほめなかったら",
+  "「ごめん」を3回言ったら",
+  "自分を卑下することを言ったら",
+  "相手より先に席を立ったら"
 ];
 
 const QUESTIONS = {
