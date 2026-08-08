@@ -398,6 +398,11 @@ nav button.on{color:var(--pink2);}
         <span>カードにセーフを1枚混ぜる</span>
         <button class="btn sm" id="safeBtn" style="width:auto;padding:9px 18px">ON</button>
       </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13.5px;margin-top:14px">
+        <span>拒否権（1ゲームに1回）</span>
+        <button class="btn sm" id="vetoBtn" style="width:auto;padding:9px 18px">残り1回</button>
+      </div>
+      <p class="note">タップで復活。勝負タイマーをスタートすると自動でリセットされます。</p>
       <p class="note">OFFにすると、カードも6枚すべてが罰ゲームになります（ルーレットと同じ確定執行）。</p>
       <p class="note">※ ホーム画面に追加するとアプリのように全画面で使えます（Safari → 共有 → ホーム画面に追加）</p>
     </div>
@@ -449,8 +454,8 @@ nav button.on{color:var(--pink2);}
     <div class="tnum" id="tnum" style="display:none">30</div>
     <div class="rbtns">
       <button class="btn" id="mTimer">タイマー開始</button>
-      <button class="btn ghost" id="mAgain">引き直す</button>
-      <button class="btn ghost" id="mClose">閉じる</button>
+      <button class="btn ghost" id="mVeto">🙅 拒否する</button>
+      <button class="btn ghost" id="mClose">やります</button>
     </div>
   </div>
 </div>
@@ -731,6 +736,7 @@ const def = () => ({
   qmode:["light","deep"],
   qsec:3,          /* 質問の制限時間。0＝制限なし */
   safeCard:true,   /* カードに罰ゲーム免除を1枚混ぜる */
+  vetoUsed:false,  /* 拒否権を使ったか。1ゲームに1回 */
   rtmin:5,         /* ルール勝負の制限時間（分） */
   rtEnd:0,         /* 勝負の終了時刻。0＝停止中 */
   rulesOn:[0,1,2,5].map(i=>RULES_DEFAULT[i]),
@@ -965,7 +971,7 @@ function show(item, mode){
   $("#rlv").style.background = LVCOL[item.l] + "33";
   $("#rlv").style.color = LVCOL[item.l];
   $("#rtxt").textContent = item.t;
-  $("#rsub").textContent = "拒否したら次のレベルに強制アップ。";
+  updateVetoUI();
   $("#tnum").style.display = "none";
   $("#ringWrap").style.display = "none";
   const sec = parseSec(item.t);
@@ -983,7 +989,46 @@ function parseSec(t){
   return 0;
 }
 $("#mClose").onclick = () => { clearInterval(timerId); $("#modal").classList.remove("on"); };
-$("#mAgain").onclick = () => { clearInterval(timerId); show(rnd(pool()), "引き直し"); };
+
+/* ---- 拒否権：1ゲームに1回だけ。使うと1つ上のレベルに強制アップ ---- */
+function updateVetoUI(){
+  const top = cur.l >= 3;                       /* Lv3はこれ以上上がらない */
+  $("#mVeto").style.display = top ? "none" : "block";
+  $("#mVeto").disabled = S.vetoUsed;
+  $("#mVeto").textContent = S.vetoUsed
+    ? "🙅 拒否権は使い切りました"
+    : "🙅 拒否する → Lv" + (cur.l+1) + " に強制アップ";
+  $("#rsub").innerHTML = top
+    ? "Lv3は最高レベル。ここまで来たら拒否できません。"
+    : (S.vetoUsed
+        ? "拒否権はもう残っていません。これは実行するしかありません。"
+        : "拒否できるのは<b style='color:var(--pink2)'>1ゲームに1回だけ</b>。使うと1つ上のレベルに上がります。");
+}
+/* 上のレベルから、スロットのように回して決める */
+function vetoSpin(list){
+  $("#mVeto").disabled = true; $("#mClose").disabled = true; $("#mTimer").disabled = true;
+  $("#rlv").textContent = "強制アップ中…";
+  let n = 0;
+  const iv = setInterval(()=>{
+    $("#rtxt").textContent = rnd(list).t;
+    beep(900 + n*35, .02, .03);
+    if(++n >= 15){
+      clearInterval(iv);
+      $("#mClose").disabled = false; $("#mTimer").disabled = false;
+      show(rnd(list), "拒否→強制アップ");
+      vib([40,50,120]);
+    }
+  }, 70);
+}
+$("#mVeto").onclick = () => {
+  if(S.vetoUsed || cur.l >= 3) return;
+  S.vetoUsed = true; save();
+  const nl = cur.l + 1;
+  /* 一覧で0枠にしていても、強制アップ先はそのレベル全体から選ぶ */
+  let list = allOf(nl).filter(i => qty(i.t) > 0).map(i => ({t:i.t, l:nl}));
+  if(!list.length) list = allOf(nl).map(i => ({t:i.t, l:nl}));
+  vetoSpin(list);
+};
 $("#mTimer").onclick = function(){
   const total = +this.dataset.sec; if(!total) return;
   let left = total;
@@ -1147,8 +1192,9 @@ function rtStop(cleared){
 }
 $("#rtStart").onclick = () => {
   if(S.rtEnd){ rtStop(false); toast("中止しました"); beep(600,.06); return; }
-  S.rtEnd = Date.now() + S.rtmin*60000; save();
-  rtResume(); beep(1100,.1); vib(20); toast(S.rtmin + "分スタート！");
+  S.rtEnd = Date.now() + S.rtmin*60000;
+  S.vetoUsed = false; save(); renderVetoBtn();    /* 新しい勝負なので拒否権も復活 */
+  rtResume(); beep(1100,.1); vib(20); toast(S.rtmin + "分スタート！拒否権も復活");
 };
 $("#rtBreak").onclick = () => show(rnd(pool()), "ルール違反");
 $("#clearClose").onclick = () => $("#clearModal").classList.remove("on");
@@ -1274,6 +1320,10 @@ function updateCount(){
 }
 $("#clearH").onclick = () => { S.history = []; save(); renderHistory(); updateCount(); toast("履歴を消しました"); };
 $("#sndBtn").onclick = function(){ S.sound = !S.sound; this.textContent = S.sound ? "ON" : "OFF"; save(); beep(880,.05); };
+function renderVetoBtn(){ $("#vetoBtn").textContent = S.vetoUsed ? "使用済み → 復活" : "残り1回"; }
+$("#vetoBtn").onclick = () => {
+  S.vetoUsed = false; save(); renderVetoBtn(); beep(1200,.08); toast("拒否権が復活しました");
+};
 $("#safeBtn").onclick = function(){
   S.safeCard = !S.safeCard; this.textContent = S.safeCard ? "ON" : "OFF";
   save(); deal(); beep(880,.05);
@@ -1293,6 +1343,7 @@ renderQChips(); buildQ(); renderQSec(); renderRtSel();
 if(S.rtEnd){ Date.now() < S.rtEnd ? rtResume() : rtStop(true); }
 $("#sndBtn").textContent = S.sound ? "ON" : "OFF";
 $("#safeBtn").textContent = S.safeCard ? "ON" : "OFF";
+renderVetoBtn();
 document.addEventListener("touchmove", e => { if(e.touches.length>1) e.preventDefault(); }, {passive:false});
 </script>
 </body>
