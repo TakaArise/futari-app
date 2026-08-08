@@ -173,6 +173,22 @@ select{
 }
 .qcard .q{font-size:20px;font-weight:800;line-height:1.7;}
 .qcard .num{font-size:11px;color:var(--sub);margin-bottom:14px;letter-spacing:.1em;}
+.qcard.ticking{border-color:var(--lv3);animation:tick .5s infinite alternate;}
+@keyframes tick{
+  from{box-shadow:0 0 0 1px var(--lv3),0 0 16px rgba(255,77,109,.18);}
+  to{box-shadow:0 0 0 1px var(--lv3),0 0 34px rgba(255,77,109,.42);}
+}
+.qsec{
+  font-size:58px;font-weight:900;line-height:1;margin:18px 0 0;letter-spacing:-.03em;
+  background:linear-gradient(180deg,#fff,var(--lv3));-webkit-background-clip:text;background-clip:text;color:transparent;
+}
+#qtimer .ring{margin:12px 0 0;}
+.secsel{display:flex;gap:6px;justify-content:center;margin:0 0 14px;}
+.secsel button{
+  flex:1;font-size:11.5px;font-weight:700;padding:9px 0;border-radius:11px;font-family:inherit;
+  background:var(--card);border:1.5px solid var(--line);color:var(--sub);
+}
+.secsel button.on{background:rgba(255,77,109,.18);border-color:var(--lv3);color:#fff;}
 
 /* ===== history ===== */
 .hitem{display:flex;gap:10px;align-items:center;padding:11px 13px;background:var(--card);border-radius:12px;margin-bottom:7px;font-size:12.5px;}
@@ -300,7 +316,12 @@ nav button.on{color:var(--pink2);}
     <div class="qcard">
       <div class="num" id="qnum">TAP TO START</div>
       <div class="q" id="qtxt">準備はいい？</div>
+      <div id="qtimer" style="display:none;width:100%">
+        <div class="qsec" id="qsec">3</div>
+        <div class="ring"><i id="qring"></i></div>
+      </div>
     </div>
+    <div class="secsel" id="qsecsel"></div>
     <button class="btn" id="nextQ">質問を引く</button>
     <button class="btn ghost" style="margin-top:10px" id="qtoPunish">答えられなかった → 罰ゲーム</button>
   </section>
@@ -622,6 +643,7 @@ const KEY = "futari_kyori_v1";
 const def = () => ({
   levels:[1,2],
   qmode:["light","deep"],
+  qsec:3,          /* 質問の制限時間。0＝制限なし */
   rulesOn:[0,1,2,5].map(i=>RULES_DEFAULT[i]),
   customRules:[],
   customPunish:[],
@@ -687,6 +709,7 @@ const vib = p => { if(S.sound && navigator.vibrate) navigator.vibrate(p); };
 
 /* タブ */
 $$("nav button").forEach(b => b.onclick = () => {
+  stopQTimer();                      /* 画面を離れたら質問のカウントは止める */
   $$("nav button").forEach(x => x.classList.remove("on"));
   $$(".screen").forEach(x => x.classList.remove("on"));
   b.classList.add("on");
@@ -1000,7 +1023,49 @@ function renderQChips(){
     save(); renderQChips(); buildQ(); beep(740,.04);
   });
 }
+/* ---- 制限時間 ---- */
+let qTimer = null, qRunning = false;
+function renderQSec(){
+  $("#qsecsel").innerHTML = [3,5,10,0].map(s=>`
+    <button class="${S.qsec===s?"on":""}" data-s="${s}">${s ? s+"秒" : "制限なし"}</button>`).join("");
+  $("#qsecsel").querySelectorAll("button").forEach(b => b.onclick = () => {
+    stopQTimer(); S.qsec = +b.dataset.s; save(); renderQSec(); beep(740,.04);
+  });
+}
+function stopQTimer(){
+  clearInterval(qTimer); qRunning = false;
+  $("#qtimer").style.display = "none";
+  $(".qcard").classList.remove("ticking");
+  $("#nextQ").textContent = "質問を引く";
+}
+function startQTimer(){
+  if(!S.qsec) return;
+  qRunning = true;
+  let left = S.qsec;
+  $("#qtimer").style.display = "block";
+  $("#qsec").textContent = left;
+  $("#qring").style.transition = "none";
+  $("#qring").style.width = "100%";
+  requestAnimationFrame(()=>{
+    $("#qring").style.transition = "width " + S.qsec + "s linear";
+    $("#qring").style.width = "0%";
+  });
+  $(".qcard").classList.add("ticking");
+  $("#nextQ").textContent = "✋ 答えた！（セーフ）";
+  beep(1100,.06); vib(15);
+  clearInterval(qTimer);
+  qTimer = setInterval(()=>{
+    left--;
+    if(left > 0){ $("#qsec").textContent = left; beep(760,.05,.05); vib(12); }
+    else{                                        /* 時間切れ → そのまま罰ゲーム */
+      $("#qsec").textContent = 0;
+      stopQTimer();
+      show(rnd(pool()), "質問タイムアップ");
+    }
+  },1000);
+}
 $("#nextQ").onclick = () => {
+  if(qRunning){ stopQTimer(); toast("セーフ！"); beep(1400,.12); return; }
   if(qp >= qDeck.length) buildQ();          /* 一巡したら切り直す */
   const item = qDeck[qp++];
   const c = $(".qcard");
@@ -1009,10 +1074,11 @@ $("#nextQ").onclick = () => {
     $("#qnum").textContent = "QUESTION " + qp + " ・ " + QNAME[item.m];
     $("#qtxt").textContent = item.t;
     c.style.transition = ".25s"; c.style.transform = "none"; c.style.opacity = "1";
+    startQTimer();
   },140);
   beep(920,.06); vib(15);
 };
-$("#qtoPunish").onclick = () => show(rnd(pool()), "質問");
+$("#qtoPunish").onclick = () => { stopQTimer(); show(rnd(pool()), "質問"); };
 
 /* ============================================================
    設定
@@ -1057,7 +1123,7 @@ $("#resetAll").onclick = () => {
    init
 ============================================================ */
 renderChips(); pick(); deal(); renderRules(); renderCustoms(); renderHistory(); updateCount();
-renderQChips(); buildQ();
+renderQChips(); buildQ(); renderQSec();
 $("#sndBtn").textContent = S.sound ? "ON" : "OFF";
 document.addEventListener("touchmove", e => { if(e.touches.length>1) e.preventDefault(); }, {passive:false});
 </script>
