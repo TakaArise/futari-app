@@ -303,7 +303,7 @@ nav button.on{color:var(--pink2);}
       <canvas id="wheel" width="680" height="680"></canvas>
       <button class="hub" id="spin">START</button>
     </div>
-    <p class="note" style="text-align:center">中央のボタン、または円盤をタップで回転</p>
+    <p class="note" style="text-align:center">🎯 <b>逃げ場なし</b>。止まったところを必ず実行。<br>中央のボタン、または円盤をタップで回転</p>
     <button class="btn ghost" style="margin-top:12px" id="reshuffle">別の6つに入れ替える</button>
     <button class="btn ghost" style="margin-top:8px" data-open-list>🗂 一覧から自分で選ぶ</button>
   </section>
@@ -311,7 +311,7 @@ nav button.on{color:var(--pink2);}
   <!-- ========== カード ========== -->
   <section class="screen" id="s-card">
     <div class="chips" id="chips-c"></div>
-    <p class="note" style="text-align:center;margin-top:12px">直感で1枚選んでタップ</p>
+    <p class="note" style="text-align:center;margin-top:12px">🃏 <b>1枚だけセーフが混ざってる</b>。運を試すならこっち。<br>直感で1枚選んでタップ</p>
     <div class="deck" id="deck"></div>
     <button class="btn ghost" style="margin-top:12px" id="redeal">カードを配り直す</button>
     <button class="btn ghost" style="margin-top:8px" data-open-list>🗂 一覧から自分で選ぶ</button>
@@ -394,6 +394,11 @@ nav button.on{color:var(--pink2);}
         <span>効果音・バイブ</span>
         <button class="btn sm" id="sndBtn" style="width:auto;padding:9px 18px">ON</button>
       </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:13.5px;margin-top:14px">
+        <span>カードにセーフを1枚混ぜる</span>
+        <button class="btn sm" id="safeBtn" style="width:auto;padding:9px 18px">ON</button>
+      </div>
+      <p class="note">OFFにすると、カードも6枚すべてが罰ゲームになります（ルーレットと同じ確定執行）。</p>
       <p class="note">※ ホーム画面に追加するとアプリのように全画面で使えます（Safari → 共有 → ホーム画面に追加）</p>
     </div>
     <button class="btn ghost" style="margin-top:10px;color:#ff9aad" id="resetAll">初期状態に戻す</button>
@@ -409,6 +414,19 @@ nav button.on{color:var(--pink2);}
   </div>
   <div class="sheetBody" id="sheetBody"></div>
   <div class="sheetFoot" id="poolInfo"></div>
+</div>
+
+<!-- ===== セーフカード ===== -->
+<div class="modal" id="safeModal">
+  <div class="rbox">
+    <div class="rlv" style="background:rgba(74,222,128,.18);color:var(--lv1)">SAFE 🍀</div>
+    <p class="rtxt">助かった！</p>
+    <p class="rsub">このカードは罰ゲーム免除。<br>次に配り直したら、また別の場所にまぎれます。</p>
+    <div class="rbtns">
+      <button class="btn" id="safeAgain">カードを配り直す</button>
+      <button class="btn ghost" id="safeClose">閉じる</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===== クリアモーダル ===== -->
@@ -712,6 +730,7 @@ const def = () => ({
   levels:[1,2],
   qmode:["light","deep"],
   qsec:3,          /* 質問の制限時間。0＝制限なし */
+  safeCard:true,   /* カードに罰ゲーム免除を1枚混ぜる */
   rtmin:5,         /* ルール勝負の制限時間（分） */
   rtEnd:0,         /* 勝負の終了時刻。0＝停止中 */
   rulesOn:[0,1,2,5].map(i=>RULES_DEFAULT[i]),
@@ -899,18 +918,25 @@ $("#reshuffle").onclick = () => { pick(); beep(700,.05); toast("入れ替えま�
 ============================================================ */
 let hand = [];
 function deal(){
-  hand = shuffle(pool()).slice(0,6);   /* ONが6枚未満ならその枚数だけ配る */
+  const p = pool();
+  hand = shuffle(p).slice(0,6);        /* ONが6枚未満ならその枚数だけ配る */
+  /* おまかせのときだけ、1枚を罰ゲーム免除にする（自分で6個指定したときは全部出す） */
+  if(S.safeCard && p.length > 6) hand[Math.floor(Math.random()*hand.length)] = {safe:true};
   $("#deck").innerHTML = hand.map((h,i)=>`
     <button class="pcard" data-i="${i}">
       <div class="inner">
         <div class="face front">💗</div>
-        <div class="face back" style="background:linear-gradient(150deg,${LVCOL[h.l]},#8b5cf6)">✨</div>
+        <div class="face back" style="background:linear-gradient(150deg,${h.safe?"#4ade80":LVCOL[h.l]},#8b5cf6)">${h.safe?"🍀":"✨"}</div>
       </div>
     </button>`).join("");
   $("#deck").querySelectorAll(".pcard").forEach(c => c.onclick = () => {
     if(c.classList.contains("flip")) return;
     c.classList.add("flip"); beep(880,.07); vib(20);
-    setTimeout(()=>show(hand[+c.dataset.i], "カード"), 480);
+    const h = hand[+c.dataset.i];
+    setTimeout(()=>{
+      if(h.safe){ $("#safeModal").classList.add("on"); beep(1500,.3,.07); vib([50,50,160]); }
+      else show(h, "カード");
+    }, 480);
   });
   updateSourceBtns();
 }
@@ -925,6 +951,8 @@ function updateSourceBtns(){
   $("#redeal").textContent = few ? `いまの${n}枠をすべて配置中` : "カードを配り直す";
 }
 $("#redeal").onclick = () => { deal(); toast("配り直しました"); beep(700,.05); };
+$("#safeClose").onclick = () => $("#safeModal").classList.remove("on");
+$("#safeAgain").onclick = () => { $("#safeModal").classList.remove("on"); deal(); beep(700,.05); };
 
 /* ============================================================
    結果モーダル + タイマー
@@ -1246,6 +1274,11 @@ function updateCount(){
 }
 $("#clearH").onclick = () => { S.history = []; save(); renderHistory(); updateCount(); toast("履歴を消しました"); };
 $("#sndBtn").onclick = function(){ S.sound = !S.sound; this.textContent = S.sound ? "ON" : "OFF"; save(); beep(880,.05); };
+$("#safeBtn").onclick = function(){
+  S.safeCard = !S.safeCard; this.textContent = S.safeCard ? "ON" : "OFF";
+  save(); deal(); beep(880,.05);
+  toast(S.safeCard ? "1枚だけ助かります" : "全部が罰ゲームになりました");
+};
 $("#resetAll").onclick = () => {
   if(!confirm("設定・履歴・追加したルールをすべて消して初期状態に戻します。よろしいですか？")) return;
   S = def(); save(); location.reload();
@@ -1259,6 +1292,7 @@ renderQChips(); buildQ(); renderQSec(); renderRtSel();
 /* 前回の勝負が続いていれば再開、終わっていればその場でクリア判定 */
 if(S.rtEnd){ Date.now() < S.rtEnd ? rtResume() : rtStop(true); }
 $("#sndBtn").textContent = S.sound ? "ON" : "OFF";
+$("#safeBtn").textContent = S.safeCard ? "ON" : "OFF";
 document.addEventListener("touchmove", e => { if(e.touches.length>1) e.preventDefault(); }, {passive:false});
 </script>
 </body>
