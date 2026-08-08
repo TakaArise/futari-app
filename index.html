@@ -178,9 +178,18 @@ select{
   from{box-shadow:0 0 0 1px var(--lv3),0 0 16px rgba(255,77,109,.18);}
   to{box-shadow:0 0 0 1px var(--lv3),0 0 34px rgba(255,77,109,.42);}
 }
+.qstop{
+  display:block;width:100%;background:none;border:0;padding:14px 0 4px;font-family:inherit;
+  transition:transform .12s;
+}
+.qstop:active{transform:scale(.94);}
 .qsec{
-  font-size:58px;font-weight:900;line-height:1;margin:18px 0 0;letter-spacing:-.03em;
+  display:block;font-size:58px;font-weight:900;line-height:1;letter-spacing:-.03em;
   background:linear-gradient(180deg,#fff,var(--lv3));-webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.qstopLabel{
+  display:block;font-size:12px;font-weight:800;color:var(--lv3);margin-top:9px;
+  border:1.5px solid var(--lv3);border-radius:99px;padding:7px 0;background:rgba(255,77,109,.12);
 }
 #qtimer .ring{margin:12px 0 0;}
 .secsel{display:flex;gap:6px;justify-content:center;margin:0 0 14px;}
@@ -317,7 +326,10 @@ nav button.on{color:var(--pink2);}
       <div class="num" id="qnum">TAP TO START</div>
       <div class="q" id="qtxt">準備はいい？</div>
       <div id="qtimer" style="display:none;width:100%">
-        <div class="qsec" id="qsec">3</div>
+        <button class="qstop" id="qstop">
+          <span class="qsec" id="qsec">3</span>
+          <span class="qstopLabel">タップして回答する</span>
+        </button>
         <div class="ring"><i id="qring"></i></div>
       </div>
     </div>
@@ -1051,7 +1063,7 @@ function startQTimer(){
     $("#qring").style.width = "0%";
   });
   $(".qcard").classList.add("ticking");
-  $("#nextQ").textContent = "✋ 答えた！（セーフ）";
+  $("#nextQ").textContent = "✋ 回答する（カウント停止）";
   beep(1100,.06); vib(15);
   clearInterval(qTimer);
   qTimer = setInterval(()=>{
@@ -1064,8 +1076,14 @@ function startQTimer(){
     }
   },1000);
 }
+/* カウント停止＝回答スタート。数字とボタンのどちらからでも止められる */
+function answered(){
+  if(!qRunning) return;
+  stopQTimer(); toast("セーフ！どうぞ答えて"); beep(1400,.12); vib(20);
+}
+$("#qstop").onclick = answered;
 $("#nextQ").onclick = () => {
-  if(qRunning){ stopQTimer(); toast("セーフ！"); beep(1400,.12); return; }
+  if(qRunning){ answered(); return; }
   if(qp >= qDeck.length) buildQ();          /* 一巡したら切り直す */
   const item = qDeck[qp++];
   const c = $(".qcard");
