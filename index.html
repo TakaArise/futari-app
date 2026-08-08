@@ -198,6 +198,11 @@ select{
   background:var(--card);border:1.5px solid var(--line);color:var(--sub);
 }
 .secsel button.on{background:rgba(255,77,109,.18);border-color:var(--lv3);color:#fff;}
+.rtNum{
+  font-size:46px;font-weight:900;text-align:center;letter-spacing:.02em;margin:4px 0 0;
+  font-variant-numeric:tabular-nums;
+  background:linear-gradient(180deg,#fff,var(--pink2));-webkit-background-clip:text;background-clip:text;color:transparent;
+}
 
 /* ===== history ===== */
 .hitem{display:flex;gap:10px;align-items:center;padding:11px 13px;background:var(--card);border-radius:12px;margin-bottom:7px;font-size:12.5px;}
@@ -324,6 +329,18 @@ nav button.on{color:var(--pink2);}
 
     <h2 class="t">今ONのルール</h2>
     <div class="panel" id="activeRules"></div>
+
+    <h2 class="t">制限時間つきで勝負する</h2>
+    <p class="note">ONのルールを、この時間のあいだ守り切れるか。破った方はその場で罰ゲーム。</p>
+    <div class="panel" style="margin-top:10px">
+      <div class="secsel" id="rtSel" style="margin-bottom:12px"></div>
+      <div id="rtRun" style="display:none">
+        <div class="rtNum" id="rtNum">05:00</div>
+        <div class="ring" style="margin:12px 0 16px"><i id="rtRing"></i></div>
+      </div>
+      <button class="btn" id="rtStart">⏱ スタート</button>
+      <button class="btn ghost" id="rtBreak" style="margin-top:9px;display:none">ルールを破った！ → 罰ゲーム</button>
+    </div>
   </section>
 
   <!-- ========== 質問 ========== -->
@@ -392,6 +409,16 @@ nav button.on{color:var(--pink2);}
   </div>
   <div class="sheetBody" id="sheetBody"></div>
   <div class="sheetFoot" id="poolInfo"></div>
+</div>
+
+<!-- ===== クリアモーダル ===== -->
+<div class="modal" id="clearModal">
+  <div class="rbox">
+    <div class="rlv" style="background:rgba(74,222,128,.18);color:var(--lv1)">TIME UP</div>
+    <p class="rtxt">守り切りました！</p>
+    <p class="rsub">罰ゲームなし。次はルールを増やすか、時間を延ばして再挑戦。</p>
+    <div class="rbtns"><button class="btn" id="clearClose">OK</button></div>
+  </div>
 </div>
 
 <!-- ===== 結果モーダル ===== -->
@@ -685,6 +712,8 @@ const def = () => ({
   levels:[1,2],
   qmode:["light","deep"],
   qsec:3,          /* 質問の制限時間。0＝制限なし */
+  rtmin:5,         /* ルール勝負の制限時間（分） */
+  rtEnd:0,         /* 勝負の終了時刻。0＝停止中 */
   rulesOn:[0,1,2,5].map(i=>RULES_DEFAULT[i]),
   customRules:[],
   customPunish:[],
@@ -1044,6 +1073,59 @@ $("#addRule").onclick = () => {
 };
 
 /* ============================================================
+   ルール勝負タイマー（終了時刻で管理するので画面ロックでもズレない）
+============================================================ */
+const RTMIN = [3,5,10,15];
+let rtTimer = null;
+function renderRtSel(){
+  $("#rtSel").innerHTML = RTMIN.map(m=>`<button class="${S.rtmin===m?"on":""}" data-m="${m}">${m}分</button>`).join("");
+  $("#rtSel").querySelectorAll("button").forEach(b => b.onclick = () => {
+    S.rtmin = +b.dataset.m; save(); renderRtSel(); beep(740,.04);
+  });
+}
+const rtFmt = ms => {
+  const s = Math.max(0, Math.ceil(ms/1000));
+  return String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0");
+};
+function rtPaint(){
+  const left = S.rtEnd - Date.now();
+  $("#rtNum").textContent = rtFmt(left);
+  $("#rtRing").style.width = Math.max(0, left/(S.rtmin*60000)*100) + "%";
+  $("#hcount").textContent = "⏱ " + rtFmt(left);
+}
+function rtResume(){
+  clearInterval(rtTimer);
+  $("#rtRun").style.display = "block";
+  $("#rtSel").style.display = "none";
+  $("#rtStart").textContent = "■ 中止する";
+  $("#rtBreak").style.display = "block";
+  rtPaint();
+  rtTimer = setInterval(()=>{
+    if(Date.now() >= S.rtEnd){ rtStop(true); return; }
+    rtPaint();
+  }, 250);
+}
+function rtStop(cleared){
+  clearInterval(rtTimer); S.rtEnd = 0; save();
+  $("#rtRun").style.display = "none";
+  $("#rtSel").style.display = "flex";
+  $("#rtStart").textContent = "⏱ スタート";
+  $("#rtBreak").style.display = "none";
+  updateCount();
+  if(cleared){
+    $("#clearModal").classList.add("on");
+    beep(1500,.35,.08); vib([100,60,100,60,250]);
+  }
+}
+$("#rtStart").onclick = () => {
+  if(S.rtEnd){ rtStop(false); toast("中止しました"); beep(600,.06); return; }
+  S.rtEnd = Date.now() + S.rtmin*60000; save();
+  rtResume(); beep(1100,.1); vib(20); toast(S.rtmin + "分スタート！");
+};
+$("#rtBreak").onclick = () => show(rnd(pool()), "ルール違反");
+$("#clearClose").onclick = () => $("#clearModal").classList.remove("on");
+
+/* ============================================================
    質問
 ============================================================ */
 let qDeck = [], qp = 0;
@@ -1158,7 +1240,10 @@ function renderHistory(){
       </div>`).join("")
     : `<p class="note">まだ履歴がありません。</p>`;
 }
-function updateCount(){ $("#hcount").textContent = S.history.length ? "これまで " + S.history.length + " 回" : ""; }
+function updateCount(){
+  if(S.rtEnd) return;                       /* 勝負中は残り時間の表示を優先 */
+  $("#hcount").textContent = S.history.length ? "これまで " + S.history.length + " 回" : "";
+}
 $("#clearH").onclick = () => { S.history = []; save(); renderHistory(); updateCount(); toast("履歴を消しました"); };
 $("#sndBtn").onclick = function(){ S.sound = !S.sound; this.textContent = S.sound ? "ON" : "OFF"; save(); beep(880,.05); };
 $("#resetAll").onclick = () => {
@@ -1170,7 +1255,9 @@ $("#resetAll").onclick = () => {
    init
 ============================================================ */
 renderChips(); pick(); deal(); renderRules(); renderCustoms(); renderHistory(); updateCount();
-renderQChips(); buildQ(); renderQSec();
+renderQChips(); buildQ(); renderQSec(); renderRtSel();
+/* 前回の勝負が続いていれば再開、終わっていればその場でクリア判定 */
+if(S.rtEnd){ Date.now() < S.rtEnd ? rtResume() : rtStop(true); }
 $("#sndBtn").textContent = S.sound ? "ON" : "OFF";
 document.addEventListener("touchmove", e => { if(e.touches.length>1) e.preventDefault(); }, {passive:false});
 </script>
